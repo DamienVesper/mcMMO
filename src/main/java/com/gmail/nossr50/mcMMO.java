@@ -31,7 +31,6 @@ import com.gmail.nossr50.runnables.player.ClearRegisteredXPGainTask;
 import com.gmail.nossr50.runnables.player.PlayerProfileLoadingTask;
 import com.gmail.nossr50.runnables.player.PowerLevelUpdatingTask;
 import com.gmail.nossr50.skills.alchemy.Alchemy;
-import com.gmail.nossr50.skills.child.ChildConfig;
 import com.gmail.nossr50.skills.repair.repairables.Repairable;
 import com.gmail.nossr50.skills.repair.repairables.RepairableManager;
 import com.gmail.nossr50.skills.repair.repairables.SimpleRepairableManager;
@@ -79,8 +78,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class mcMMO extends JavaPlugin {
-
-
     /* Managers & Services */
     private static PlatformManager platformManager;
     private static MetadataService metadataService;
@@ -98,8 +95,9 @@ public class mcMMO extends JavaPlugin {
     private static ChatManager chatManager;
     private static CommandManager commandManager; //ACF
     private static TransientEntityTracker transientEntityTracker;
+//    private static ProtocolLibManager protocolLibManager;
 
-    private @NotNull SkillTools skillTools;
+    private SkillTools skillTools;
 
     private static boolean serverShutdownExecuted = false;
 
@@ -141,19 +139,13 @@ public class mcMMO extends JavaPlugin {
     private GeneralConfig generalConfig;
     private AdvancedConfig advancedConfig;
     private PartyConfig partyConfig;
+    private PotionConfig potionConfig;
+    private CustomItemSupportConfig customItemSupportConfig;
+    private EnchantmentMapper enchantmentMapper;
+    private AttributeMapper attributeMapper;
 
     private FoliaLib foliaLib;
     private PartyManager partyManager;
-
-//    private RepairConfig repairConfig;
-//    private SalvageConfig salvageConfig;
-//    private PersistentDataConfig persistentDataConfig;
-//    private ChatConfig chatConfig;
-//    private CoreSkillsConfig coreSkillsConfig;
-//    private RankConfig rankConfig;
-//    private TreasureConfig treasureConfig;
-//    private FishingTreasureConfig fishingTreasureConfig;
-//    private SoundConfig soundConfig;
 
     public mcMMO() {
         p = this;
@@ -186,6 +178,7 @@ public class mcMMO extends JavaPlugin {
             //Init configs
             advancedConfig = new AdvancedConfig(getDataFolder());
             partyConfig = new PartyConfig(getDataFolder());
+            customItemSupportConfig = new CustomItemSupportConfig(getDataFolder());
 
             //Store this value so other plugins can check it
             isRetroModeEnabled = generalConfig.getIsRetroMode();
@@ -206,8 +199,11 @@ public class mcMMO extends JavaPlugin {
 
             modManager = new ModManager();
 
-            //Init Material Maps
+            // Init Material Maps
             materialMapStore = new MaterialMapStore();
+            // Init compatibility mappers
+            enchantmentMapper = new EnchantmentMapper(this);
+            attributeMapper = new AttributeMapper(this);
 
             loadConfigFiles();
 
@@ -369,6 +365,9 @@ public class mcMMO extends JavaPlugin {
         if(getServer().getPluginManager().getPlugin("WorldGuard") != null) {
             WorldGuardManager.getInstance().registerFlags();
         }
+
+        // ProtocolLib
+        // protocolLibManager = new ProtocolLibManager(this);
     }
 
     /**
@@ -566,12 +565,14 @@ public class mcMMO extends JavaPlugin {
         FishingTreasureConfig.getInstance();
         HiddenConfig.getInstance();
         mcMMO.p.getAdvancedConfig();
-        PotionConfig.getInstance();
+
+        // init potion config
+        potionConfig = new PotionConfig();
+        potionConfig.loadPotions();
+
         CoreSkillsConfig.getInstance();
         SoundConfig.getInstance();
         RankConfig.getInstance();
-
-        new ChildConfig();
 
         List<Repairable> repairables = new ArrayList<>();
 
@@ -809,7 +810,27 @@ public class mcMMO extends JavaPlugin {
         return partyManager;
     }
 
+    public CustomItemSupportConfig getCustomItemSupportConfig() {
+        return customItemSupportConfig;
+    }
+
+    public PotionConfig getPotionConfig() {
+        return potionConfig;
+    }
+
+    public EnchantmentMapper getEnchantmentMapper() {
+        return enchantmentMapper;
+    }
+
+    public AttributeMapper getAttributeMapper() {
+        return attributeMapper;
+    }
+
     public @NotNull FoliaLib getFoliaLib() {
         return foliaLib;
     }
+
+//    public ProtocolLibManager getProtocolLibManager() {
+//        return protocolLibManager;
+//    }
 }

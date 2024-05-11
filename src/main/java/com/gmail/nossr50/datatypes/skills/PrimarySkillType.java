@@ -16,15 +16,18 @@ public enum PrimarySkillType {
     ALCHEMY,
     ARCHERY,
     AXES,
+    CROSSBOWS,
     EXCAVATION,
     FISHING,
     HERBALISM,
+    MACES,
     MINING,
     REPAIR,
     SALVAGE,
     SMELTING,
     SWORDS,
     TAMING,
+    TRIDENTS,
     UNARMED,
     WOODCUTTING;
 
@@ -130,12 +133,12 @@ public enum PrimarySkillType {
     /**
      * WARNING: Being removed in an upcoming update, you should be using mcMMO.getSkillTools() instead
      * @return the max level of this skill
-     * @see SkillTools#getXpModifier(com.gmail.nossr50.datatypes.skills.PrimarySkillType)
+     * @see SkillTools#getXpMultiplier(com.gmail.nossr50.datatypes.skills.PrimarySkillType)
      * @deprecated this is being removed in an upcoming update, you should be using mcMMO.getSkillTools() instead
      */
     @Deprecated
     public double getXpModifier() {
-        return mcMMO.p.getSkillTools().getXpModifier(this);
+        return mcMMO.p.getSkillTools().getXpMultiplier(this);
     }
 
     /**

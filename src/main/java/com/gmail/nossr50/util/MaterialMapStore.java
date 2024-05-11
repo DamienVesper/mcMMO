@@ -10,9 +10,6 @@ import java.util.Locale;
 /**
  * Stores hash tables for item and block names
  * This allows for better support across multiple versions of Minecraft
- *
- * This is a temporary class, mcMMO is spaghetti and I'l clean it up later
- *
  */
 public class MaterialMapStore {
 
@@ -52,8 +49,8 @@ public class MaterialMapStore {
     private final @NotNull HashSet<String> bows;
     private final @NotNull HashSet<String> crossbows;
     private final @NotNull HashSet<String> tools;
-
     private final @NotNull HashSet<String> enchantables;
+    private final @NotNull HashSet<String> maces;
 
     private final @NotNull HashSet<String> ores;
     private final @NotNull HashSet<String> intendedToolPickAxe;
@@ -101,6 +98,7 @@ public class MaterialMapStore {
         shovels = new HashSet<>();
         hoes = new HashSet<>();
         tridents = new HashSet<>();
+        maces = new HashSet<>();
 
         enchantables = new HashSet<>();
 
@@ -457,6 +455,7 @@ public class MaterialMapStore {
         enchantables.addAll(tridents);
         enchantables.addAll(bows);
         enchantables.addAll(crossbows);
+        enchantables.addAll(maces);
 
         enchantables.add("shears");
         enchantables.add("fishing_rod");
@@ -480,6 +479,7 @@ public class MaterialMapStore {
         fillHoes();
         fillShovels();
         fillTridents();
+        fillMaces();
         fillStringTools();
         fillBows();
         fillCrossbows();
@@ -495,6 +495,7 @@ public class MaterialMapStore {
         tools.addAll(stringTools);
         tools.addAll(bows);
         tools.addAll(crossbows);
+        tools.addAll(maces);
     }
 
     private void fillBows() {
@@ -509,6 +510,10 @@ public class MaterialMapStore {
         stringTools.add("bow");
         stringTools.add("fishing_rod");
         stringTools.add("carrot_on_a_stick");
+    }
+
+    private void fillMaces() {
+        maces.add("mace");
     }
 
     private void fillTridents() {
@@ -818,6 +823,22 @@ public class MaterialMapStore {
 
     public boolean isCrossbow(@NotNull String id) {
         return crossbows.contains(id);
+    }
+
+    public boolean isTrident(@NotNull Material material) {
+        return isTrident(material.getKey().getKey());
+    }
+
+    public boolean isTrident(@NotNull String id) {
+        return tridents.contains(id);
+    }
+
+    public boolean isMace(@NotNull Material material) {
+        return isMace(material.getKey().getKey());
+    }
+
+    public boolean isMace(@NotNull String id) {
+        return maces.contains(id);
     }
 
     public boolean isLeatherArmor(@NotNull Material material) {

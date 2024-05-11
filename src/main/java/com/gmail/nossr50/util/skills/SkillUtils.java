@@ -13,13 +13,13 @@ import com.gmail.nossr50.mcMMO;
 import com.gmail.nossr50.metadata.ItemMetadataService;
 import com.gmail.nossr50.util.ItemUtils;
 import com.gmail.nossr50.util.Misc;
+import com.gmail.nossr50.util.Permissions;
 import com.gmail.nossr50.util.player.NotificationManager;
 import com.gmail.nossr50.util.player.UserManager;
 import com.gmail.nossr50.util.text.StringUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.Recipe;
@@ -27,11 +27,12 @@ import org.bukkit.inventory.ShapedRecipe;
 import org.bukkit.inventory.ShapelessRecipe;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Iterator;
+
+import static com.gmail.nossr50.util.PotionEffectMapper.getHaste;
 
 public final class SkillUtils {
     /**
@@ -147,13 +148,8 @@ public final class SkillUtils {
                 return;
             }
 
-            int originalDigSpeed = heldItem.getEnchantmentLevel(Enchantment.DIG_SPEED);
-
-            //Add dig speed
-
-            //Lore no longer gets added, no point to it afaik
-            //ItemUtils.addAbilityLore(heldItem); //lore can be a secondary failsafe for 1.13 and below
-            ItemUtils.addDigSpeedToItem(heldItem, heldItem.getEnchantmentLevel(Enchantment.DIG_SPEED));
+            int originalDigSpeed = heldItem.getEnchantmentLevel(mcMMO.p.getEnchantmentMapper().getEfficiency());
+            ItemUtils.addDigSpeedToItem(heldItem, heldItem.getEnchantmentLevel(mcMMO.p.getEnchantmentMapper().getEfficiency()));
 
             //1.13.2+ will have persistent metadata for this item
             mcMMO.getMetadataService().getItemMetadataService().setSuperAbilityBoostedItem(heldItem, originalDigSpeed);
@@ -161,9 +157,9 @@ public final class SkillUtils {
             int duration = 0;
             int amplifier = 0;
 
-            if (player.hasPotionEffect(PotionEffectType.FAST_DIGGING)) {
+            if (player.hasPotionEffect(getHaste())) {
                 for (PotionEffect effect : player.getActivePotionEffects()) {
-                    if (effect.getType() == PotionEffectType.FAST_DIGGING) {
+                    if (effect.getType() == getHaste()) {
                         duration = effect.getDuration();
                         amplifier = effect.getAmplifier();
                         break;
@@ -193,7 +189,7 @@ public final class SkillUtils {
                         mcMMO.p.getSkillTools().getSuperAbilityMaxLength(mcMMO.p.getSkillTools().getSuperAbility(skill))) * Misc.TICK_CONVERSION_FACTOR;
             }
 
-            PotionEffect abilityBuff = new PotionEffect(PotionEffectType.FAST_DIGGING, duration + ticks, amplifier + 10);
+            PotionEffect abilityBuff = new PotionEffect(getHaste(), duration + ticks, amplifier + 10);
             player.addPotionEffect(abilityBuff, true);
         }
     }
@@ -220,7 +216,7 @@ public final class SkillUtils {
 
             if(itemMeta != null) {
                 // This is safe to call without prior checks.
-                itemMeta.removeEnchant(Enchantment.DIG_SPEED);
+                itemMeta.removeEnchant(mcMMO.p.getEnchantmentMapper().getEfficiency());
 
                 itemStack.setItemMeta(itemMeta);
                 ItemUtils.removeAbilityLore(itemStack);
@@ -250,7 +246,7 @@ public final class SkillUtils {
 
         Material type = itemStack.getType();
         short maxDurability = mcMMO.getRepairableManager().isRepairable(type) ? mcMMO.getRepairableManager().getRepairable(type).getMaximumDurability() : type.getMaxDurability();
-        durabilityModifier = (int) Math.min(durabilityModifier / (itemStack.getEnchantmentLevel(Enchantment.DURABILITY) + 1), maxDurability * maxDamageModifier);
+        durabilityModifier = (int) Math.min(durabilityModifier / (itemStack.getEnchantmentLevel(mcMMO.p.getEnchantmentMapper().getUnbreaking()) + 1), maxDurability * maxDamageModifier);
 
         itemStack.setDurability((short) Math.min(itemStack.getDurability() + durabilityModifier, maxDurability));
     }
@@ -264,8 +260,8 @@ public final class SkillUtils {
 
         return false;
     }
-    
-    
+
+
     /**
      * Modify the durability of an ItemStack, using Armor specific formula for unbreaking enchant damage reduction
      *
@@ -280,7 +276,7 @@ public final class SkillUtils {
 
         Material type = itemStack.getType();
         short maxDurability = mcMMO.getRepairableManager().isRepairable(type) ? mcMMO.getRepairableManager().getRepairable(type).getMaximumDurability() : type.getMaxDurability();
-        durabilityModifier = (int) Math.min(durabilityModifier * (0.6 + 0.4/ (itemStack.getEnchantmentLevel(Enchantment.DURABILITY) + 1)), maxDurability * maxDamageModifier);
+        durabilityModifier = (int) Math.min(durabilityModifier * (0.6 + 0.4/ (itemStack.getEnchantmentLevel(mcMMO.p.getEnchantmentMapper().getUnbreaking()) + 1)), maxDurability * maxDamageModifier);
 
         itemStack.setDurability((short) Math.min(itemStack.getDurability() + durabilityModifier, maxDurability));
     }
@@ -351,5 +347,15 @@ public final class SkillUtils {
         }
 
         return quantity;
+    }
+
+    /**
+     * Checks if a player can use a skill
+     * @param player target player
+     * @param subSkillType target subskill
+     * @return true if the player has permission and has the skill unlocked
+     */
+    public static boolean canUseSubskill(Player player, @NotNull SubSkillType subSkillType) {
+        return Permissions.isSubSkillEnabled(player, subSkillType) && RankUtils.hasUnlockedSubskill(player, subSkillType);
     }
 }

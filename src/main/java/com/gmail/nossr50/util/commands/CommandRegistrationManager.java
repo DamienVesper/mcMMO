@@ -33,6 +33,9 @@ public final class CommandRegistrationManager {
 
     private static void registerSkillCommands() {
         for (PrimarySkillType skill : PrimarySkillType.values()) {
+            if (skill == PrimarySkillType.MACES)
+                continue;
+
             String commandName = skill.toString().toLowerCase(Locale.ENGLISH);
             String localizedName = mcMMO.p.getSkillTools().getLocalizedSkillName(skill).toLowerCase(Locale.ENGLISH);
 
@@ -42,8 +45,8 @@ public final class CommandRegistrationManager {
             command.setDescription(LocaleLoader.getString("Commands.Description.Skill", StringUtils.getCapitalized(localizedName)));
             command.setPermission("mcmmo.commands." + commandName);
             command.setPermissionMessage(permissionsMessage);
-            command.setUsage(LocaleLoader.getString("Commands.Usage.0", localizedName));
-            command.setUsage(command.getUsage() + "\n" + LocaleLoader.getString("Commands.Usage.2", localizedName, "?", "[" + LocaleLoader.getString("Commands.Usage.Page") + "]"));
+            command.setUsage(LocaleLoader.getString("Commands.Usage.0", commandName));
+            command.setUsage(command.getUsage() + "\n" + LocaleLoader.getString("Commands.Usage.2", commandName, "?", "[" + LocaleLoader.getString("Commands.Usage.Page") + "]"));
 
             switch (skill) {
                 case ACROBATICS:
@@ -61,6 +64,9 @@ public final class CommandRegistrationManager {
                 case AXES:
                     command.setExecutor(new AxesCommand());
                     break;
+                case CROSSBOWS:
+                    command.setExecutor(new CrossbowsCommand());
+                    break;
 
                 case EXCAVATION:
                     command.setExecutor(new ExcavationCommand());
@@ -72,6 +78,10 @@ public final class CommandRegistrationManager {
 
                 case HERBALISM:
                     command.setExecutor(new HerbalismCommand());
+                    break;
+
+                case MACES:
+                    // command.setExecutor(new MacesCommand());
                     break;
 
                 case MINING:
@@ -97,6 +107,9 @@ public final class CommandRegistrationManager {
                 case TAMING:
                     command.setExecutor(new TamingCommand());
                     break;
+                case TRIDENTS:
+                    command.setExecutor(new TridentsCommand());
+                    break;
 
                 case UNARMED:
                     command.setExecutor(new UnarmedCommand());
@@ -107,7 +120,7 @@ public final class CommandRegistrationManager {
                     break;
 
                 default:
-                    break;
+                    throw new IllegalStateException("Unexpected value: " + skill);
             }
         }
     }

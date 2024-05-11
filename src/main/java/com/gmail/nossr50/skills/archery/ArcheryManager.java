@@ -10,16 +10,16 @@ import com.gmail.nossr50.util.MetadataConstants;
 import com.gmail.nossr50.util.Misc;
 import com.gmail.nossr50.util.Permissions;
 import com.gmail.nossr50.util.player.NotificationManager;
-import com.gmail.nossr50.util.random.RandomChanceUtil;
+import com.gmail.nossr50.util.random.ProbabilityUtil;
 import com.gmail.nossr50.util.skills.RankUtils;
-import com.gmail.nossr50.util.skills.SkillActivationType;
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
+
+import static com.gmail.nossr50.util.PotionEffectMapper.getNausea;
 
 public class ArcheryManager extends SkillManager {
     public ArcheryManager(McMMOPlayer mcMMOPlayer) {
@@ -53,7 +53,7 @@ public class ArcheryManager extends SkillManager {
      * @param target The {@link LivingEntity} damaged by the arrow
      * @param arrow The {@link Entity} who shot the arrow
      */
-    public double distanceXpBonusMultiplier(LivingEntity target, Entity arrow) {
+    public static double distanceXpBonusMultiplier(LivingEntity target, Entity arrow) {
         //Hacky Fix - some plugins spawn arrows and assign them to players after the ProjectileLaunchEvent fires
         if(!arrow.hasMetadata(MetadataConstants.METADATA_KEY_ARROW_DISTANCE))
             return 1;
@@ -89,17 +89,15 @@ public class ArcheryManager extends SkillManager {
      * @param defender The {@link Player} being affected by the ability
      */
     public double daze(Player defender) {
-        if (!RandomChanceUtil.isActivationSuccessful(SkillActivationType.RANDOM_LINEAR_100_SCALE_WITH_CAP, SubSkillType.ARCHERY_DAZE, getPlayer())) {
+        if (!ProbabilityUtil.isSkillRNGSuccessful(SubSkillType.ARCHERY_DAZE, getPlayer())) {
             return 0;
         }
 
         Location dazedLocation = defender.getLocation();
         dazedLocation.setPitch(90 - Misc.getRandom().nextInt(181));
 
-//        defender.teleport(dazedLocation);
         mcMMO.p.getFoliaLib().getImpl().teleportAsync(defender, dazedLocation);
-        defender.addPotionEffect(new PotionEffect(PotionEffectType.CONFUSION, 20 * 10, 10));
-
+        defender.addPotionEffect(new PotionEffect(getNausea(), 20 * 10, 10));
 
         if (NotificationManager.doesPlayerUseNotifications(defender)) {
             NotificationManager.sendPlayerInformation(defender, NotificationType.SUBSKILL_MESSAGE, "Combat.TouchedFuzzy");
@@ -118,10 +116,10 @@ public class ArcheryManager extends SkillManager {
      * @param oldDamage The raw damage value of this arrow before we modify it
      */
     public double skillShot(double oldDamage) {
-        if (!RandomChanceUtil.isActivationSuccessful(SkillActivationType.ALWAYS_FIRES, SubSkillType.ARCHERY_SKILL_SHOT, getPlayer())) {
+        if (ProbabilityUtil.isNonRNGSkillActivationSuccessful(SubSkillType.ARCHERY_SKILL_SHOT, getPlayer())) {
+            return Archery.getSkillShotBonusDamage(getPlayer(), oldDamage);
+        } else {
             return oldDamage;
         }
-
-        return Archery.getSkillShotBonusDamage(getPlayer(), oldDamage);
     }
 }
