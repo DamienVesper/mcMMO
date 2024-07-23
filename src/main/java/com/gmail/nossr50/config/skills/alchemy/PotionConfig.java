@@ -2,10 +2,8 @@ package com.gmail.nossr50.config.skills.alchemy;
 
 import com.gmail.nossr50.config.LegacyConfigLoader;
 import com.gmail.nossr50.datatypes.skills.alchemy.AlchemyPotion;
-import com.gmail.nossr50.locale.LocaleLoader;
 import com.gmail.nossr50.mcMMO;
 import com.gmail.nossr50.util.ItemUtils;
-import com.gmail.nossr50.util.PotionUtil;
 import org.bukkit.ChatColor;
 import org.bukkit.Color;
 import org.bukkit.Material;
@@ -15,14 +13,17 @@ import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.potion.PotionType;
-import org.codehaus.plexus.util.StringUtils;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import java.io.File;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
+import static com.gmail.nossr50.util.ItemUtils.setItemName;
 import static com.gmail.nossr50.util.PotionUtil.*;
-import static com.gmail.nossr50.util.text.StringUtils.convertKeyToName;
 
 public class PotionConfig extends LegacyConfigLoader {
 
@@ -38,7 +39,7 @@ public class PotionConfig extends LegacyConfigLoader {
     /**
      * Map of potion names to AlchemyPotion objects.
      */
-    private final Map<String, AlchemyPotion> loadedPotions = new HashMap<>();
+    private final Map<String, AlchemyPotion> alchemyPotions = new HashMap<>();
 
     public PotionConfig() {
         super("potions.yml");
@@ -105,7 +106,7 @@ public class PotionConfig extends LegacyConfigLoader {
             AlchemyPotion potion = loadPotion(potionSection.getConfigurationSection(potionName));
 
             if (potion != null) {
-                loadedPotions.put(potionName, potion);
+                alchemyPotions.put(potionName, potion);
                 potionsLoaded++;
             } else {
                 failures++;
@@ -175,32 +176,14 @@ public class PotionConfig extends LegacyConfigLoader {
                 return null;
             }
 
-            PotionType potionType = matchPotionType(potionTypeStr, upgraded, extended);
-            if (potionType == null) {
-                // try matching to key
-                mcMMO.p.getLogger().warning("Failed to match potion type, trying to match with config key...");
-                matchPotionType(key, upgraded, extended);
-            }
-
-            if (potionType == null) {
-                mcMMO.p.getLogger().severe("PotionConfig: Failed to parse potion type for: " + potionTypeStr
-                        + ", upgraded: " + upgraded + ", extended: " + extended + " for potion " + key
-                        + ", from configuration section: " + potion_section);
+            // This works via side effects
+            // TODO: Redesign later, side effects are stupid
+            if(!setPotionType(potionMeta, potionTypeStr, upgraded, extended)) {
+                mcMMO.p.getLogger().severe("PotionConfig: Failed to set parameters of potion for " + key + ": " + potionTypeStr);
                 return null;
             }
 
-            // Set base potion type
-            // NOTE: extended/ignored are effectively ignored here on 1.20.5 and later
-            PotionUtil.setBasePotionType(potionMeta, potionType, extended, upgraded);
-
-//            // Use the name of the potion to indicate upgrade status if not set in PotionData
-//            if(convertPotionConfigName(key).toUpperCase().contains("STRONG"))
-//                upgraded = true;
-//
-//            if(convertPotionConfigName(key).toUpperCase().contains("LONG"))
-//                extended = true;
-
-            List<String> lore = new ArrayList<>();
+            final List<String> lore = new ArrayList<>();
             if (potion_section.contains("Lore")) {
                 for (String line : potion_section.getStringList("Lore")) {
                     lore.add(ChatColor.translateAlternateColorCodes('&', line));
@@ -243,33 +226,45 @@ public class PotionConfig extends LegacyConfigLoader {
                     }
                 }
             }
-
             // Set the name of the potion
             setPotionDisplayName(potion_section, potionMeta);
 
             // TODO: Might not need to .setItemMeta
             itemStack.setItemMeta(potionMeta);
-            return new AlchemyPotion(itemStack, children);
+            return new AlchemyPotion(potion_section.getName(), itemStack, children);
         } catch (Exception e) {
             mcMMO.p.getLogger().warning("PotionConfig: Failed to load Alchemy potion: " + potion_section.getName());
+            e.printStackTrace();
             return null;
         }
     }
 
-    private void setPotionDisplayName(ConfigurationSection section, PotionMeta potionMeta) {
-        String configuredName = section.getString("Name", null);
-        if (configuredName != null) {
-            potionMeta.setItemName(configuredName);
+    private boolean setPotionType(PotionMeta potionMeta, String potionTypeStr, boolean upgraded, boolean extended) {
+        final PotionType potionType = matchPotionType(potionTypeStr, upgraded, extended);
+
+        if (potionType == null) {
+            mcMMO.p.getLogger().severe("PotionConfig: Failed to parse potion type for: " + potionTypeStr);
+            return false;
         }
-//
-//        // Potion is water, but has effects
-//        if (isPotionTypeWater(potionMeta)
-//                && (PotionUtil.hasBasePotionEffects(potionMeta) || !potionMeta.getCustomEffects().isEmpty())) {
-//            // If we don't set a name for these potions, they will simply be called "Water Potion"
-//            final String name = section.getName().toUpperCase().replace("_", " ");
-//            potionMeta.setDisplayName(name);
-//            System.out.println("DEBUG: Renaming potion to " + name);
-//        }
+
+        // set base
+        setBasePotionType(potionMeta, potionType, extended, upgraded);
+
+        // Legacy only
+        setUpgradedAndExtendedProperties(potionType, potionMeta, upgraded, extended);
+        return true;
+    }
+
+    private void setPotionDisplayName(ConfigurationSection section, PotionMeta potionMeta) {
+        // If a potion doesn't have any custom effects, there is no reason to override the vanilla name
+        if (potionMeta.getCustomEffects().isEmpty()) {
+            return;
+        }
+
+        final String configuredName = section.getString("Name", null);
+        if (configuredName != null) {
+            setItemName(potionMeta, configuredName);
+        }
     }
 
     /**
@@ -328,7 +323,7 @@ public class PotionConfig extends LegacyConfigLoader {
      * @return AlchemyPotion that corresponds to the given name.
      */
     public AlchemyPotion getPotion(String name) {
-        return loadedPotions.get(name);
+        return alchemyPotions.get(name);
     }
 
     /**
@@ -339,12 +334,19 @@ public class PotionConfig extends LegacyConfigLoader {
      * @return AlchemyPotion that corresponds to the given ItemStack.
      */
     public AlchemyPotion getPotion(ItemStack item) {
-        for (AlchemyPotion potion : loadedPotions.values()) {
-            if (potion.isSimilarPotion(item)) {
-                return potion;
-            }
+        final List<AlchemyPotion> potionList = alchemyPotions.values()
+                .stream()
+                .filter(potion -> potion.isSimilarPotion(item))
+                .toList();
+        if(potionList.size() > 1) {
+            mcMMO.p.getLogger().severe("Multiple potions defined in config have matched this potion, for mcMMO to behave" +
+                    " properly there should only be one match found.");
+            mcMMO.p.getLogger().severe("Potion ItemStack:" + item.toString());
+            mcMMO.p.getLogger().severe("Alchemy Potions from config matching this item: "
+                    + potionList.stream().map(AlchemyPotion::toString).collect(Collectors.joining(", ")));
         }
-        return null;
+
+        return potionList.isEmpty() ? null : potionList.get(0);
     }
 
     public Color generateColor(List<PotionEffect> effects) {
