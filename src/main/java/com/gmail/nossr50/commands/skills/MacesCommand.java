@@ -10,7 +10,6 @@ import com.gmail.nossr50.util.skills.RankUtils;
 import com.gmail.nossr50.util.skills.SkillUtils;
 import com.gmail.nossr50.util.text.TextComponentFactory;
 import net.kyori.adventure.text.Component;
-import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
@@ -65,8 +64,6 @@ public class MacesCommand extends SkillCommand {
                     String.valueOf(mmoPlayer.getMacesManager().getCrushDamage())));
         }
 
-        messages.add(ChatColor.GRAY + "The Maces skill is a work in progress and is still being developed," +
-                " feedback would be appreciated in the mcMMO discord server.");
         return messages;
     }
 

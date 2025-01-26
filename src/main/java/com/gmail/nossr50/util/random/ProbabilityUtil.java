@@ -14,11 +14,13 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.util.Locale;
 
 import static java.util.Objects.requireNonNull;
 
 public class ProbabilityUtil {
-    public static final @NotNull DecimalFormat percent = new DecimalFormat("##0.00%");
+    public static final @NotNull DecimalFormat percent = new DecimalFormat("##0.00%", DecimalFormatSymbols.getInstance(Locale.US));
     public static final double LUCKY_MODIFIER = 1.333D;
 
     /**
@@ -41,7 +43,7 @@ public class ProbabilityUtil {
     public static double chanceOfSuccessPercentage(@Nullable McMMOPlayer mmoPlayer,
                                                    @NotNull SubSkillType subSkillType,
                                                    boolean isLucky) {
-        Probability probability = getSubSkillProbability(subSkillType, mmoPlayer);
+        final Probability probability = getSubSkillProbability(subSkillType, mmoPlayer);
         //Probability values are on a 0-1 scale and need to be "transformed" into a 1-100 scale
         double percentageValue = probability.getValue(); //Doesn't need to be scaled
 
@@ -437,7 +439,7 @@ public class ProbabilityUtil {
             return Probability.ofPercent(ceiling);
         }
 
-        double odds = (skillLevel / maxBonusLevel) * 100D;
+        double odds = ((skillLevel / maxBonusLevel) * ceiling);
 
         // make sure the odds aren't lower or higher than the floor or ceiling
         return Probability.ofPercent(Math.min(Math.max(floor, odds), ceiling));

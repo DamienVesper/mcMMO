@@ -91,12 +91,11 @@ public class SwordsManager extends SkillManager {
             }
 
             RuptureTask ruptureTask = new RuptureTask(mmoPlayer, target,
-                    mcMMO.p.getAdvancedConfig().getRuptureTickDamage(target instanceof Player, getRuptureRank()),
-                    mcMMO.p.getAdvancedConfig().getRuptureExplosionDamage(target instanceof Player, getRuptureRank()));
+                    mcMMO.p.getAdvancedConfig().getRuptureTickDamage(target instanceof Player, getRuptureRank()));
 
             RuptureTaskMeta ruptureTaskMeta = new RuptureTaskMeta(mcMMO.p, ruptureTask);
 
-            mcMMO.p.getFoliaLib().getImpl().runAtEntityTimer(mmoPlayer.getPlayer(), ruptureTask, 1, 1);
+            mcMMO.p.getFoliaLib().getImpl().runAtEntityTimer(target, ruptureTask, 1, 1);
             target.setMetadata(MetadataConstants.METADATA_KEY_RUPTURE, ruptureTaskMeta);
 
 //            if (mmoPlayer.useChatNotifications()) {

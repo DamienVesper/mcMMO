@@ -8,15 +8,17 @@ import org.bukkit.SoundCategory;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+
 public class SoundManager {
-    public static Sound CRIPPLE_SOUND;
-    static {
-        try {
-            CRIPPLE_SOUND = Sound.valueOf("ITEM_MACE_SMASH_GROUND");
-        } catch (IllegalArgumentException e) {
-            CRIPPLE_SOUND = Sound.BLOCK_ANVIL_PLACE;
-        }
-    }
+    private static Sound CRIPPLE_SOUND;
+
+    private static final String ITEM_MACE_SMASH_GROUND = "ITEM_MACE_SMASH_GROUND";
+
+    private static final String VALUE_OF = "valueOf";
+
+    private static final String ORG_BUKKIT_SOUND = "org.bukkit.Sound";
 
     /**
      * Sends a sound to the player
@@ -107,8 +109,26 @@ public class SoundManager {
             case DEFLECT_ARROWS, BLEED -> Sound.ENTITY_ENDER_EYE_DEATH;
             case GLASS -> Sound.BLOCK_GLASS_BREAK;
             case ITEM_CONSUMED -> Sound.ITEM_BOTTLE_EMPTY;
-            case CRIPPLE -> CRIPPLE_SOUND;
+            case CRIPPLE -> getCrippleSound();
         };
+    }
+
+    private static Sound getCrippleSound() {
+        if (CRIPPLE_SOUND != null) {
+            return CRIPPLE_SOUND;
+        }
+
+        try {
+            // Spigot changed the class from enum to interface around 1.21.3
+            final Class<?> clazz = Class.forName(ORG_BUKKIT_SOUND);
+            final Method valueOf = clazz.getMethod(VALUE_OF);
+            CRIPPLE_SOUND = (Sound) valueOf.invoke(null, ITEM_MACE_SMASH_GROUND);
+        } catch (IllegalArgumentException | ClassNotFoundException | NoSuchMethodException | InvocationTargetException
+                 | IllegalAccessException e) {
+            CRIPPLE_SOUND = Sound.BLOCK_ANVIL_PLACE;
+        }
+
+        return CRIPPLE_SOUND;
     }
 
     public static float getFizzPitch() {

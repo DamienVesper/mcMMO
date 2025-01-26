@@ -167,11 +167,15 @@ public class InventoryListener implements Listener {
         McMMOPlayer mmoPlayer = UserManager.getPlayer(player);
 
         if (event.getInventory() instanceof FurnaceInventory furnaceInventory) {
+            if (!mcMMO.p.getSkillTools().doesPlayerHaveSkillPermission(player, PrimarySkillType.SMELTING))
+                return;
             //Switch owners
             ContainerMetadataUtils.processContainerOwnership(furnaceInventory.getHolder(), player);
         }
 
         if (event.getInventory() instanceof BrewerInventory brewerInventory) {
+            if (!mcMMO.p.getSkillTools().doesPlayerHaveSkillPermission(player, PrimarySkillType.ALCHEMY))
+                return;
             // switch owners
             ContainerMetadataUtils.processContainerOwnership(brewerInventory.getHolder(), player);
         }
@@ -444,7 +448,7 @@ public class InventoryListener implements Listener {
 
         ItemStack result = event.getRecipe().getResult();
 
-        //TODO: what is the point of this
+        //TODO: Used for Chimaera Wing, but not sure it is still necessary
         if (!ItemUtils.isMcMMOItem(result)) {
             return;
         }
