@@ -1,3 +1,73 @@
+Version 2.2.036
+    Fixed a bug where Chimaera Wing could cause an exception when used
+    Fixed bug where Mob Spawners could drop in Blast Mining (thanks TomBock)
+    Fixed Spectral Arrows not granting XP for Archery or Crossbows (thanks broccolai)
+    Fixed bug where Trickshot arrows would lose their potion or custom effects
+    Added locale strings for /mcmmo help command (thanks Griffeng)
+
+Version 2.2.035
+    Support for new additions from Minecraft 1.21.5
+    Fixed bug where Blast Mining would not drop deep slate
+    Swords subskill Stab is now configurable in advanced.yml
+    Added 'Skills.Swords.Stab.Base_Damage' to advanced.yml
+    Added 'Skills.Swords.Stab.Per_Rank_Multiplier' to advanced.yml
+    Added 'Bush' to experience.yml for Herbalism
+    Added 'Bush' to config.yml Bonus Drops for Herbalism
+    Added 'Cactus_Flower' to experience.yml for Herbalism
+    Added 'Cactus_Flower' to config.yml Bonus Drops for Herbalism
+    Added 'Firefly_Bush' to experience.yml for Herbalism
+    Added 'Firefly_Bush' to config.yml Bonus Drops for Herbalism
+    Added 'Leaf_Litter' to experience.yml for Herbalism
+    Added 'Leaf_Litter' to config.yml Bonus Drops for Herbalism
+    Added 'Short_Dry_Grass' to experience.yml for Herbalism
+    Added 'Short_Dry_Grass' to config.yml Bonus Drops for Herbalism
+    Added 'Tall_Dry_Grass' to experience.yml for Herbalism
+    Added 'Tall_Dry_Grass' to config.yml Bonus Drops for Herbalism
+    Added 'Wildflowers' to experience.yml for Herbalism
+    Added 'Wildflowers' to config.yml Bonus Drops for Herbalism
+
+
+    NOTES:
+    The mob variants will use the "base" mob definition for values for now, such a a warm chicken using chicken values from experience.yml
+    The new config settings will be added automatically to advanced.yml
+
+Version 2.2.034
+    Fixed bug where mcMMO would drop items in such a way that they get stuck in an adjacent block and float to the surface
+    Fixed a rare edge case where null entities during chunk unload would cause a NullPointerException and potentially lead to server instability
+    Fixed bug where arrow would award archery xp after a crossbow trickshot bounce
+
+Version 2.2.033
+    Added Breeze_Rod entries to potions.yml for Awkward potion (see notes)
+    Added missing TURTLE_HELMET entry to potions.yml for Tier 1 ingredients
+    Added missing Wind Charging potion entries to potions.yml (see notes)
+    Fixed bug where mcMMO would attempt to load potions that required ingredients or effects from newer versions of Minecraft
+    mcMMO is a little more specific during start up of how many potions it loaded, it will now report on incompatible potions from being on an older game version.
+
+    NOTES:
+    You will have to update your potions.yml manually to receive these changes, it is highly recommended that if you haven't customized this file that you simply just delete it, mcMMO will generate a new one on the next start up and it will contain all the missing entries.
+    If you have customized this file, you can find the "default" version of this file here on the mcMMO github repo: https://github.com/mcMMO-Dev/mcMMO/blob/master/src/main/resources/potions.yml
+    You can use this file to compare it to your own and make the manual changes needed to get the new entries.
+    After making the changes to potions.yml (either via deleting it or not...) mcMMO should now recognize the Wind Charging potion and the Awkward potion created from Breeze Rods
+
+Version 2.2.032
+    Fixed bug where Roll would throw exceptions with certain CMI interactions
+    Blast Mining no longer drops infested block variants
+    Reduced bonus drops on Blast Mining and randomized results (see notes)
+    Added Beetroot to experience.yml for Herbalism
+    Added Open_Eyeblossom to experience.yml for Herbalism
+    Addeed Open_Eyeblossom to config.yml Bonus Drops for Herbalism
+    Added Closed_Eyeblossom to experience.yml for Herbalism
+    Addeed Closed_Eyeblossom to config.yml Bonus Drops for Herbalism
+
+    NOTES:
+    A balance pass for Blast Mining is coming, but for now, I've reduced the total bonus drops and clamped the yield ceiling as Blast Mining is a bit too good.
+
+Version 2.2.031
+    Fixed potential NPE when player or blockstate is null for Inventory events on Furnaces
+    Fixed bug where en_us locale was being set system-wide (thanks BlvckBytes)
+    Fixed bug where Decimal format would throw exception on non en_us systems (thanks BlvckBytes)
+    (API) Added McMMOPlayerTameEntityEvent event (thanks Warriorrr)
+
 Version 2.2.030
     Fixed bug where rupture task could cause an exception (Thanks Wariorrrr)
     Fixed bug where Smelting permission was needed for Alchemy XP gain

@@ -21,6 +21,7 @@ import com.gmail.nossr50.util.player.NotificationManager;
 import com.gmail.nossr50.util.player.UserManager;
 import com.gmail.nossr50.util.random.ProbabilityUtil;
 import com.gmail.nossr50.util.skills.CombatUtils;
+import com.gmail.nossr50.util.skills.ProjectileUtils;
 import com.gmail.nossr50.worldguard.WorldGuardManager;
 import com.gmail.nossr50.worldguard.WorldGuardUtils;
 import org.bukkit.ChatColor;
@@ -216,7 +217,7 @@ public class EntityListener implements Listener {
 
                 entity.setMetadata(MetadataConstants.METADATA_KEY_TRAVELING_BLOCK, MetadataConstants.MCMMO_METADATA_VALUE);
                 TravelingBlockMetaCleanup metaCleanupTask = new TravelingBlockMetaCleanup(entity, pluginRef);
-                mcMMO.p.getFoliaLib().getImpl().runAtEntityTimer(entity, metaCleanupTask, 20, 20*60); //6000 ticks is 5 minutes
+                mcMMO.p.getFoliaLib().getScheduler().runAtEntityTimer(entity, metaCleanupTask, 20, 20*60); //6000 ticks is 5 minutes
             } else if (isTracked) {
                 BlockUtils.setUnnaturalBlock(block);
                 entity.removeMetadata(MetadataConstants.METADATA_KEY_TRAVELING_BLOCK, pluginRef);
@@ -1090,7 +1091,7 @@ public class EntityListener implements Listener {
             return;
 
         if (event.getEntity() instanceof Arrow arrow) {
-            if (arrow.isShotFromCrossbow()) {
+            if (ProjectileUtils.isCrossbowProjectile(arrow)) {
                 Crossbows.processCrossbows(event, pluginRef, arrow);
             }
         }

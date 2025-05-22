@@ -109,7 +109,7 @@ public final class Misc {
     }
 
     public static Location getBlockCenter(Location location) {
-        return location.add(0.5, 0.5, 0.5);
+        return location.clone().add(0.5, 0.5, 0.5);
     }
 
     public static void profileCleanup(@NotNull String playerName) {
@@ -117,7 +117,7 @@ public final class Misc {
 
         if (player != null) {
             UserManager.remove(player);
-            mcMMO.p.getFoliaLib().getImpl().runLaterAsync(new PlayerProfileLoadingTask(player), 1); // 1 Tick delay to ensure the player is marked as online before we begin loading
+            mcMMO.p.getFoliaLib().getScheduler().runLaterAsync(new PlayerProfileLoadingTask(player), 1); // 1 Tick delay to ensure the player is marked as online before we begin loading
         }
     }
 
