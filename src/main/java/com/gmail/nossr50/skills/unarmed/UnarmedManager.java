@@ -1,8 +1,6 @@
 package com.gmail.nossr50.skills.unarmed;
 
 import static com.gmail.nossr50.util.random.ProbabilityUtil.isSkillRNGSuccessful;
-import static org.bukkit.Material.INFESTED_STONE_BRICKS;
-import static org.bukkit.Material.STONE_BRICKS;
 
 import com.gmail.nossr50.api.ItemSpawnReason;
 import com.gmail.nossr50.datatypes.interactions.NotificationType;
@@ -24,7 +22,6 @@ import com.gmail.nossr50.util.random.ProbabilityUtil;
 import com.gmail.nossr50.util.skills.RankUtils;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
-import org.bukkit.block.BlockState;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -32,6 +29,7 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
 public class UnarmedManager extends SkillManager {
+    public static final double BERSERK_DMG_MODIFIER = 1.5;
 
     public UnarmedManager(McMMOPlayer mmoPlayer) {
         super(mmoPlayer, PrimarySkillType.UNARMED);
@@ -166,7 +164,7 @@ public class UnarmedManager extends SkillManager {
      */
     public double berserkDamage(double damage) {
         damage =
-                ((damage * Unarmed.berserkDamageModifier) * mmoPlayer.getAttackStrength()) - damage;
+                ((damage * BERSERK_DMG_MODIFIER) * mmoPlayer.getAttackStrength()) - damage;
 
         return damage;
     }

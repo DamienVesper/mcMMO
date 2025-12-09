@@ -435,6 +435,7 @@ public class FishingManager extends SkillManager {
     public boolean isMagicHunterEnabled() {
         return RankUtils.hasUnlockedSubskill(getPlayer(), SubSkillType.FISHING_MAGIC_HUNTER)
                 && RankUtils.hasUnlockedSubskill(getPlayer(), SubSkillType.FISHING_TREASURE_HUNTER)
+                && Permissions.isSubSkillEnabled(getPlayer(), SubSkillType.FISHING_MAGIC_HUNTER)
                 && Permissions.isSubSkillEnabled(getPlayer(), SubSkillType.FISHING_TREASURE_HUNTER);
     }
 
@@ -596,8 +597,6 @@ public class FishingManager extends SkillManager {
                                                     drop.getAmount() - 1) : null);
                                     drop.setAmount(1);
                                 }
-
-                                targetPlayer.updateInventory();
                             }
                             break;
 

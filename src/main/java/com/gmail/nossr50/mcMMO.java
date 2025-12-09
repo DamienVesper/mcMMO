@@ -78,6 +78,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
 import net.kyori.adventure.platform.bukkit.BukkitAudiences;
 import net.shatteredlands.shatt.backup.ZipLibrary;
 import org.bstats.bukkit.Metrics;
@@ -86,10 +87,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.HandlerList;
 import org.bukkit.metadata.FixedMetadataValue;
-import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.plugin.java.JavaPluginLoader;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -306,7 +305,7 @@ public class mcMMO extends JavaPlugin {
                 }
             }
         } catch (Throwable t) {
-            getLogger().severe("There was an error while enabling mcMMO!");
+            getLogger().log(Level.SEVERE, "There was an error while enabling mcMMO!", t);
 
             if (!(t instanceof ExceptionInInitializerError)) {
                 t.printStackTrace();
