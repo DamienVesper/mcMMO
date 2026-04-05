@@ -132,7 +132,7 @@ public final class SQLDatabaseManager implements DatabaseManager {
                 + general.getMySQLDatabaseName();
 
         // Temporary hack for 1.17 + SSL support (legacy path kept intact)
-        if (!mcMMO.getCompatibilityManager().getMinecraftGameVersion().isAtLeast(1, 17, 0)
+        if (!mcMMO.getMinecraftGameVersion().isAtLeast(1, 17, 0)
                 && general.getMySQLSSL()) {
             connectionString += "?verifyServerCertificate=false&useSSL=true&requireSSL=true";
         } else {
@@ -179,7 +179,9 @@ public final class SQLDatabaseManager implements DatabaseManager {
         poolProps.setUsername(mcMMO.p.getGeneralConfig().getMySQLUserName());
         poolProps.setPassword(mcMMO.p.getGeneralConfig().getMySQLUserPassword());
 
+        final int defaultMinIdle = 10;
         poolProps.setInitialSize(0);
+        poolProps.setMinIdle(Math.min(defaultMinIdle, maxIdle));
         poolProps.setMaxIdle(maxIdle);
         poolProps.setMaxActive(maxActive);
         poolProps.setMaxWait(-1);

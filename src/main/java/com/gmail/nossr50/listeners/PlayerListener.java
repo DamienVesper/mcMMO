@@ -434,13 +434,7 @@ public class PlayerListener implements Listener {
         Entity caught = event.getCaught();
         FishingManager fishingManager = UserManager.getPlayer(player).getFishingManager();
 
-        //Track the hook
         if (ExperienceConfig.getInstance().isFishingExploitingPrevented()) {
-            if (event.getHook().getMetadata(MetadataConstants.METADATA_KEY_FISH_HOOK_REF).size()
-                    == 0) {
-                fishingManager.setFishHookReference(event.getHook());
-            }
-
             //Spam Fishing
             if (event.getState() == PlayerFishEvent.State.CAUGHT_FISH
                     && fishingManager.isFishingTooOften()) {
@@ -489,8 +483,7 @@ public class PlayerListener implements Listener {
 
                         fishingManager.processExploiting(event.getHook().getLocation().toVector());
 
-                        if (fishingManager.isExploitingFishing(
-                                event.getHook().getLocation().toVector())) {
+                        if (fishingManager.isExploitingFishing()) {
                             player.sendMessage(LocaleLoader.getString("Fishing.ScarcityTip",
                                     ExperienceConfig.getInstance()
                                             .getFishingExploitingOptionMoveRange()));
