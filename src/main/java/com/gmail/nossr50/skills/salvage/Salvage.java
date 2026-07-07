@@ -37,9 +37,13 @@ public final class Salvage {
 
     static int calculateSalvageableAmount(int currentDurability, short maxDurability,
             int baseAmount) {
-        double percentDamaged = (maxDurability <= 0) ? 1D
+        double percentRemaining = (maxDurability <= 0) ? 1D
                 : (double) (maxDurability - currentDurability) / maxDurability;
 
-        return (int) Math.floor(baseAmount * percentDamaged);
+        if (percentRemaining <= 0) {
+            return 0;
+        }
+
+        return Math.max(1, (int) Math.floor(baseAmount * percentRemaining));
     }
 }
