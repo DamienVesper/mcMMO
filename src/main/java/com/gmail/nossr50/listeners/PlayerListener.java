@@ -748,7 +748,7 @@ public class PlayerListener implements Listener {
                         event.setCancelled(true);
 
                         // Make sure the player knows what he's doing when trying to repair an enchanted item
-                        if (repairManager.checkConfirmation(true)) {
+                        if (repairManager.checkConfirmation(heldItem, true)) {
                             repairManager.handleRepair(heldItem);
                         }
                     }
@@ -765,7 +765,7 @@ public class PlayerListener implements Listener {
                         event.setCancelled(true);
 
                         // Make sure the player knows what he's doing when trying to salvage an enchanted item
-                        if (salvageManager.checkConfirmation(true)) {
+                        if (salvageManager.checkConfirmation(heldItem, true)) {
                             SkillUtils.removeAbilityBoostsFromInventory(player);
                             salvageManager.handleSalvage(clickedBlock.getLocation(), heldItem);
                         }
@@ -820,6 +820,71 @@ public class PlayerListener implements Listener {
 
             default:
                 break;
+        }
+    }
+
+    /**
+     * Handle PlayerInteractEvents that need to deny item use during a pending anvil
+     * confirmation.
+     * <p>
+     * The client follows up an anvil click with a use-item action for the same hand, and the
+     * server resolves that action as its own interact event (right-click air when its raytrace
+     * no longer hits the anvil). Without denying item use here, vanilla behavior such as armor
+     * quick-equipping can consume the item mid-confirmation, swapping worn armor into the
+     * player's hand.
+     * <p>
+     * This must be its own handler that does not ignore cancelled events: an interaction with
+     * air reports itself as cancelled from the moment it is constructed, so the follow-up
+     * use-item event never reaches a handler registered with ignoreCancelled. It also runs
+     * above LOWEST so the anvil use-item allowance set there cannot override the denial.
+     *
+     * @param event The event to modify
+     */
+    @EventHandler(priority = EventPriority.LOW)
+    public void onPlayerInteractAnvilConfirmation(PlayerInteractEvent event) {
+        if (event.getAction() != Action.RIGHT_CLICK_AIR
+                && event.getAction() != Action.RIGHT_CLICK_BLOCK) {
+            return;
+        }
+
+        /* WORLD BLACKLIST CHECK */
+        if (WorldBlacklist.isWorldBlacklisted(event.getPlayer().getWorld())) {
+            return;
+        }
+
+        final Player player = event.getPlayer();
+
+        /* WORLD GUARD MAIN FLAG CHECK */
+        if (WorldGuardUtils.isWorldGuardLoaded()
+                && !WorldGuardManager.getInstance().hasMainFlag(player)) {
+            return;
+        }
+
+        denyItemUseWhileAnvilConfirmationPending(event, player);
+    }
+
+    /**
+     * Deny using the held item while a salvage or repair confirmation is pending for it.
+     *
+     * @param event The event to modify
+     * @param player The interacting player
+     */
+    private void denyItemUseWhileAnvilConfirmationPending(PlayerInteractEvent event,
+            Player player) {
+        if (event.getHand() != EquipmentSlot.HAND || !UserManager.hasPlayerDataKey(player)
+                || player.getGameMode() == GameMode.CREATIVE) {
+            return;
+        }
+
+        final McMMOPlayer mmoPlayer = UserManager.getPlayer(player);
+        if (mmoPlayer == null) {
+            return;
+        }
+
+        final ItemStack heldItem = player.getInventory().getItemInMainHand();
+        if (mmoPlayer.getSalvageManager().isAwaitingConfirmation(heldItem)
+                || mmoPlayer.getRepairManager().isAwaitingConfirmation(heldItem)) {
+            event.setUseItemInHand(Event.Result.DENY);
         }
     }
 
@@ -1063,10 +1128,16 @@ public class PlayerListener implements Listener {
 
     /**
      * Handle "ugly" aliasing /skillname commands, since setAliases doesn't work.
+     * <p>
+     * Runs at LOW priority so command filtering plugins listening at LOWEST (command whitelists,
+     * blockers, etc.) inspect the command exactly as the player typed it, while later handlers
+     * and the server itself see the rewritten English skill command. Cancelled events are left
+     * untouched so a command blocked by such a plugin is not rewritten back into an executable
+     * form.
      *
      * @param event The event to watch
      */
-    @EventHandler(priority = EventPriority.LOWEST)
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onPlayerCommandPreprocess(PlayerCommandPreprocessEvent event) {
         if (!mcMMO.p.getGeneralConfig().getLocale().equalsIgnoreCase("en_US")) {
             String message = event.getMessage();

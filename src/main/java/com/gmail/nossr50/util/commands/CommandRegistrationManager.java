@@ -1,5 +1,6 @@
 package com.gmail.nossr50.util.commands;
 
+import com.gmail.nossr50.commands.McLevelUpSoundCommand;
 import com.gmail.nossr50.commands.McabilityCommand;
 import com.gmail.nossr50.commands.McconvertCommand;
 import com.gmail.nossr50.commands.McgodCommand;
@@ -214,14 +215,16 @@ public final class CommandRegistrationManager {
 
         PluginCommand command = mcMMO.p.getCommand("xprate");
         command.setDescription(LocaleLoader.getString("Commands.Description.xprate"));
-        command.setPermission(
-                "mcmmo.commands.xprate;mcmmo.commands.xprate.reset;mcmmo.commands.xprate.set");
+        command.setPermission("mcmmo.commands.xprate;mcmmo.commands.xprate.reset;"
+                + "mcmmo.commands.xprate.set;mcmmo.commands.xprate.show");
         command.setPermissionMessage(permissionsMessage);
         command.setUsage(LocaleLoader.getString("Commands.Usage.2", "xprate",
                 "<" + LocaleLoader.getString("Commands.Usage.Rate") + ">", "<true|false>"));
         command.setUsage(
                 command.getUsage() + "\n" + LocaleLoader.getString("Commands.Usage.1", "xprate",
                         "reset"));
+        command.setUsage(
+                command.getUsage() + "\n" + LocaleLoader.getString("Commands.Usage.0", "xprate"));
         command.setAliases(aliasList);
         command.setExecutor(new XprateCommand());
     }
@@ -381,6 +384,15 @@ public final class CommandRegistrationManager {
         command.setExecutor(new McnotifyCommand());
     }
 
+    private static void registerMcLevelUpSoundCommand() {
+        PluginCommand command = mcMMO.p.getCommand("mclevelupsound");
+        command.setDescription(LocaleLoader.getString("Commands.Description.mclevelupsound"));
+        command.setPermission("mcmmo.commands.mclevelupsound");
+        command.setPermissionMessage(permissionsMessage);
+        command.setUsage(LocaleLoader.getString("Commands.Usage.0", "mclevelupsound"));
+        command.setExecutor(new McLevelUpSoundCommand());
+    }
+
     private static void registerMcscoreboardCommand() {
         PluginCommand command = mcMMO.p.getCommand("mcscoreboard");
         command.setDescription(
@@ -424,6 +436,7 @@ public final class CommandRegistrationManager {
         registerMcChatSpyCommand();
         registerMcmmoCommand();
         registerMcnotifyCommand();
+        registerMcLevelUpSoundCommand();
         registerMcrefreshCommand();
         registerMcscoreboardCommand();
         registerXprateCommand();

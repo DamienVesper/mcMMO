@@ -11,33 +11,35 @@ import com.gmail.nossr50.locale.LocaleLoader;
 import com.gmail.nossr50.mcMMO;
 import com.gmail.nossr50.util.LogUtils;
 import com.gmail.nossr50.util.Misc;
+import com.gmail.nossr50.util.PaperUtil;
 import com.gmail.nossr50.util.player.UserManager;
+import com.gmail.nossr50.util.scoreboards.backend.BukkitScoreboardBackend;
+import com.gmail.nossr50.util.scoreboards.backend.NoopScoreboardBackend;
+import com.gmail.nossr50.util.scoreboards.backend.PlayerBoard;
+import com.gmail.nossr50.util.scoreboards.backend.PacketScoreboardBackend;
+import com.gmail.nossr50.util.scoreboards.backend.ScoreboardBackend;
+import com.gmail.nossr50.util.scoreboards.backend.ScoreboardBackendSelector;
+import com.gmail.nossr50.util.scoreboards.backend.ScoreboardBackendType;
+import com.gmail.nossr50.util.skills.SkillTools;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import net.megavex.scoreboardlibrary.api.objective.ScoreboardObjective;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
-import org.bukkit.scoreboard.DisplaySlot;
-import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Manages the Scoreboards used to display a variety of mcMMO related information to the player
  */
 public class ScoreboardManager {
-    static final Map<String, ScoreboardWrapper> PLAYER_SCOREBOARDS = new HashMap<>();
-
-    // do not localize; these are internal identifiers
-    static final String SIDEBAR_OBJECTIVE = "mcmmo_sidebar";
-    static final String POWER_OBJECTIVE = "mcmmo_pwrlvl";
+    static final Map<String, ScoreboardWrapper> PLAYER_SCOREBOARDS = new ConcurrentHashMap<>();
 
     static final String HEADER_STATS = LocaleLoader.getString("Scoreboard.Header.PlayerStats");
     static final String HEADER_COOLDOWNS = LocaleLoader.getString(
@@ -58,10 +60,16 @@ public class ScoreboardManager {
     static final Map<SuperAbilityType, String> abilityLabelsColored;
     static final Map<SuperAbilityType, String> abilityLabelsSkill;
 
-    public static final String DISPLAY_NAME = "powerLevel";
+    private static ScoreboardBackend backend;
+    private static ScoreboardBackendType backendType = ScoreboardBackendType.NOOP;
 
     /*
-     * Initializes the static properties of this class
+     * Initializes the static label maps for our scoreboards.
+     *
+     * Note: backend resources are not loaded here. Loading packet adapters can fail on unsupported
+     * server versions, and doing that inside a static initializer would turn failures into
+     * ExceptionInInitializerError on first access. Backends are initialized explicitly via
+     * {@link #init()} during onEnable, guarded by the scoreboards-enabled config.
      */
     static {
         /*
@@ -155,7 +163,65 @@ public class ScoreboardManager {
         abilityLabelsSkill = abilityLabelSkillBuilder.build();
     }
 
-    private static final List<String> dirtyPowerLevels = new ArrayList<>();
+    private static final Set<String> dirtyPowerLevels = ConcurrentHashMap.newKeySet();
+
+    public static void init() {
+        if (backend != null) {
+            return;
+        }
+
+        if (!mcMMO.p.getGeneralConfig().getScoreboardsEnabled()) {
+            backendType = ScoreboardBackendType.NOOP;
+            backend = new NoopScoreboardBackend();
+            backend.init();
+            cleanUpLeftoverBukkitPowerObjective();
+            return;
+        }
+
+        final boolean isFolia = PaperUtil.isFolia();
+        final ScoreboardBackendType selectedType = ScoreboardBackendSelector.select(
+                isFolia,
+                mcMMO.getMinecraftGameVersion());
+        backendType = selectedType;
+
+        if (selectedType != ScoreboardBackendType.BUKKIT) {
+            // The Bukkit backend owns the persisted main-scoreboard objective; when any other
+            // backend is selected, a leftover persisted objective would keep rendering below
+            // nametags unmanaged.
+            cleanUpLeftoverBukkitPowerObjective();
+        }
+
+        switch (selectedType) {
+            case BUKKIT -> backend = new BukkitScoreboardBackend();
+            case PACKET -> backend = new PacketScoreboardBackend();
+            case NOOP -> {
+                backend = new NoopScoreboardBackend();
+                mcMMO.p.getLogger().warning(
+                        "Folia detected on unsupported Minecraft version "
+                                + mcMMO.getMinecraftGameVersion().getVersionStr()
+                                + " (supported packet scoreboard max is "
+                                + ScoreboardBackendSelector.MAX_PACKET_VERSION_STRING
+                                + "). Scoreboards are disabled to avoid Folia async scoreboard issues. "
+                                + "Please update mcMMO.");
+            }
+        }
+
+        try {
+            backend.init();
+        } catch (RuntimeException e) {
+            if (selectedType == ScoreboardBackendType.PACKET) {
+                mcMMO.p.getLogger().warning(
+                        "Packet scoreboard backend failed to initialize ("
+                                + e.getMessage()
+                                + "). Falling back to a Folia-safe no-op scoreboard backend.");
+                backendType = ScoreboardBackendType.NOOP;
+                backend = new NoopScoreboardBackend();
+                backend.init();
+            } else {
+                throw e;
+            }
+        }
+    }
 
     public enum SidebarType {
         NONE,
@@ -194,35 +260,41 @@ public class ScoreboardManager {
 
     // Called by PlayerJoinEvent listener
     public static void setupPlayer(Player player) {
+        ensureBackendReady();
         teardownPlayer(player);
-
         PLAYER_SCOREBOARDS.put(player.getName(), makeNewScoreboard(player));
         dirtyPowerLevels.add(player.getName());
+
+        if (mcMMO.p.getGeneralConfig().getPowerLevelTagsEnabled() && backend.isPowerLevelTagActive()) {
+            backend.setupPowerLevelTag(player);
+        }
     }
 
     // Called by PlayerQuitEvent listener and OnPlayerTeleport under certain circumstances
     public static void teardownPlayer(Player player) {
+        ensureBackendReady();
+
         if (player == null) {
             return;
         }
 
-        //Hacky world blacklist fix
-        if (player.isOnline() && player.isValid()) {
-            if (Bukkit.getServer().getScoreboardManager() != null) {
-                player.setScoreboard(Bukkit.getServer().getScoreboardManager().getMainScoreboard());
-            }
+        if (isBukkitBackendActive() && player.isOnline() && player.isValid()
+                && Bukkit.getScoreboardManager() != null) {
+            player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
         }
 
-        if (getWrapper(player) != null) {
-            ScoreboardWrapper wrapper = PLAYER_SCOREBOARDS.remove(player.getName());
-            if (wrapper.revertTask != null) {
-                wrapper.revertTask.cancel();
-            }
+        backend.removePowerLevelTag(player);
+        dirtyPowerLevels.remove(player.getName());
+
+        ScoreboardWrapper wrapper = PLAYER_SCOREBOARDS.remove(player.getName());
+        if (wrapper != null) {
+            wrapper.close();
         }
     }
 
     // Called in onDisable()
     public static void teardownAll() {
+        ensureBackendReady();
         ImmutableList<Player> onlinePlayers = ImmutableList.copyOf(
                 mcMMO.p.getServer().getOnlinePlayers());
         LogUtils.debug(mcMMO.p.getLogger(),
@@ -230,15 +302,19 @@ public class ScoreboardManager {
         for (Player player : onlinePlayers) {
             teardownPlayer(player);
         }
+
+        if (backend != null) {
+            backend.shutdown();
+        }
+        backend = null;
+        backendType = ScoreboardBackendType.NOOP;
     }
 
     // Called by ScoreboardWrapper when its Player logs off and an action tries to be performed
     public static void cleanup(ScoreboardWrapper wrapper) {
+        ensureBackendReady();
         PLAYER_SCOREBOARDS.remove(wrapper.playerName);
-
-        if (wrapper.revertTask != null) {
-            wrapper.revertTask.cancel();
-        }
+        wrapper.close();
     }
 
     // Called by internal level-up event listener
@@ -252,7 +328,7 @@ public class ScoreboardManager {
         }
 
         if (wrapper != null) {
-            if ((wrapper.isSkillScoreboard() && wrapper.targetSkill == skill)
+            if (isSkillBoardTracking(wrapper, skill)
                     || (wrapper.isStatsScoreboard()) && wrapper.isBoardShown()) {
                 wrapper.doSidebarUpdateSoon();
             }
@@ -262,8 +338,8 @@ public class ScoreboardManager {
 
             for (ScoreboardWrapper iWrapper : PLAYER_SCOREBOARDS.values()) {
                 if (iWrapper.isStatsScoreboard() && playerName.equals(iWrapper.targetPlayer)
-                        && wrapper.isBoardShown()) {
-                    wrapper.doSidebarUpdateSoon();
+                        && iWrapper.isBoardShown()) {
+                    iWrapper.doSidebarUpdateSoon();
                 }
             }
 
@@ -284,10 +360,31 @@ public class ScoreboardManager {
         // Selfboards
         ScoreboardWrapper wrapper = getWrapper(player);
 
-        if (wrapper != null && wrapper.isSkillScoreboard() && wrapper.targetSkill == skill
-                && wrapper.isBoardShown()) {
+        if (wrapper != null && isSkillBoardTracking(wrapper, skill) && wrapper.isBoardShown()) {
             wrapper.doSidebarUpdateSoon();
         }
+    }
+
+    /**
+     * Whether a wrapper's skill sidebar displays data affected by a change to the given skill.
+     * <p>
+     * Child skills (Salvage, Smelting) never gain XP or levels directly; their sidebar shows
+     * levels derived from parent skills, so a child-skill board must also refresh when one of
+     * its parent skills changes.
+     */
+    private static boolean isSkillBoardTracking(ScoreboardWrapper wrapper,
+            PrimarySkillType skill) {
+        if (!wrapper.isSkillScoreboard() || wrapper.targetSkill == null) {
+            return false;
+        }
+
+        if (wrapper.targetSkill == skill) {
+            return true;
+        }
+
+        return SkillTools.isChildSkill(wrapper.targetSkill)
+                && mcMMO.p.getSkillTools().getChildSkillParents(wrapper.targetSkill)
+                        .contains(skill);
     }
 
     // Called by internal ability event listeners
@@ -323,27 +420,7 @@ public class ScoreboardManager {
         }
 
         if (wrapper != null) {
-            wrapper.setOldScoreboard();
             wrapper.setTypeSkill(skill);
-
-            changeScoreboard(wrapper, mcMMO.p.getGeneralConfig().getSkillScoreboardTime());
-        }
-    }
-
-    public static void retryLastSkillBoard(Player player) {
-        final McMMOPlayer mmoPlayer = UserManager.getPlayer(player);
-        PrimarySkillType primarySkillType = mmoPlayer.getLastSkillShownScoreboard();
-
-        ScoreboardWrapper wrapper = getWrapper(player);
-
-        if (wrapper == null) {
-            setupPlayer(player);
-            wrapper = getWrapper(player);
-        }
-
-        if (wrapper != null) {
-            wrapper.setOldScoreboard();
-            wrapper.setTypeSkill(primarySkillType);
 
             changeScoreboard(wrapper, mcMMO.p.getGeneralConfig().getSkillScoreboardTime());
         }
@@ -359,7 +436,6 @@ public class ScoreboardManager {
                 return;
             }
 
-            wrapper.setOldScoreboard();
             wrapper.setTypeSkill(skill);
             changeScoreboard(wrapper, mcMMO.p.getGeneralConfig().getSkillLevelUpTime());
         }
@@ -372,14 +448,13 @@ public class ScoreboardManager {
             return;
         }
 
-        wrapper.setOldScoreboard();
         wrapper.setTypeSelfStats();
 
         changeScoreboard(wrapper, mcMMO.p.getGeneralConfig().getStatsScoreboardTime());
     }
 
     public static void enablePlayerInspectScoreboard(@NotNull Player player,
-            @NotNull PlayerProfile targetProfile) {
+                                                     @NotNull PlayerProfile targetProfile) {
         ScoreboardWrapper wrapper = getWrapper(player);
 
         if (wrapper == null) {
@@ -388,7 +463,6 @@ public class ScoreboardManager {
         }
 
         if (wrapper != null) {
-            wrapper.setOldScoreboard();
             wrapper.setTypeInspectStats(targetProfile);
 
             changeScoreboard(wrapper, mcMMO.p.getGeneralConfig().getInspectScoreboardTime());
@@ -396,7 +470,7 @@ public class ScoreboardManager {
     }
 
     public static void enablePlayerInspectScoreboard(@NotNull Player player,
-            @NotNull McMMOPlayer targetMcMMOPlayer) {
+                                                     @NotNull McMMOPlayer targetMcMMOPlayer) {
         ScoreboardWrapper wrapper = getWrapper(player);
 
         if (wrapper == null) {
@@ -405,7 +479,6 @@ public class ScoreboardManager {
         }
 
         if (wrapper != null) {
-            wrapper.setOldScoreboard();
             wrapper.setTypeInspectStats(targetMcMMOPlayer);
 
             changeScoreboard(wrapper, mcMMO.p.getGeneralConfig().getInspectScoreboardTime());
@@ -421,7 +494,6 @@ public class ScoreboardManager {
         }
 
         if (wrapper != null) {
-            wrapper.setOldScoreboard();
             wrapper.setTypeCooldowns();
 
             changeScoreboard(wrapper, mcMMO.p.getGeneralConfig().getCooldownScoreboardTime());
@@ -429,7 +501,7 @@ public class ScoreboardManager {
     }
 
     public static void showPlayerRankScoreboard(Player player,
-            Map<PrimarySkillType, Integer> rank) {
+                                                Map<PrimarySkillType, Integer> rank) {
         ScoreboardWrapper wrapper = getWrapper(player);
 
         if (wrapper == null) {
@@ -438,7 +510,6 @@ public class ScoreboardManager {
         }
 
         if (wrapper != null) {
-            wrapper.setOldScoreboard();
             wrapper.setTypeSelfRank();
             wrapper.acceptRankData(rank);
 
@@ -447,7 +518,7 @@ public class ScoreboardManager {
     }
 
     public static void showPlayerRankScoreboardOthers(Player player, String targetName,
-            Map<PrimarySkillType, Integer> rank) {
+                                                      Map<PrimarySkillType, Integer> rank) {
         ScoreboardWrapper wrapper = getWrapper(player);
 
         if (wrapper == null) {
@@ -456,7 +527,6 @@ public class ScoreboardManager {
         }
 
         if (wrapper != null) {
-            wrapper.setOldScoreboard();
             wrapper.setTypeInspectRank(targetName);
             wrapper.acceptRankData(rank);
 
@@ -465,7 +535,7 @@ public class ScoreboardManager {
     }
 
     public static void showTopScoreboard(Player player, PrimarySkillType skill, int pageNumber,
-            List<PlayerStat> stats) {
+                                         List<PlayerStat> stats) {
 
         ScoreboardWrapper wrapper = getWrapper(player);
 
@@ -475,7 +545,6 @@ public class ScoreboardManager {
         }
 
         if (wrapper != null) {
-            wrapper.setOldScoreboard();
             wrapper.setTypeTop(skill, pageNumber);
             wrapper.acceptLeaderboardData(stats);
 
@@ -484,7 +553,7 @@ public class ScoreboardManager {
     }
 
     public static void showTopPowerScoreboard(Player player, int pageNumber,
-            List<PlayerStat> stats) {
+                                              List<PlayerStat> stats) {
         ScoreboardWrapper wrapper = getWrapper(player);
 
         if (wrapper == null) {
@@ -493,7 +562,6 @@ public class ScoreboardManager {
         }
 
         if (wrapper != null) {
-            wrapper.setOldScoreboard();
             wrapper.setTypeTopPower(pageNumber);
             wrapper.acceptLeaderboardData(stats);
 
@@ -502,11 +570,18 @@ public class ScoreboardManager {
     }
 
     public static @Nullable ScoreboardWrapper getWrapper(Player player) {
-        if (PLAYER_SCOREBOARDS.get(player.getName()) == null) {
-            makeNewScoreboard(player);
+        ScoreboardWrapper wrapper = PLAYER_SCOREBOARDS.get(player.getName());
+
+        if (wrapper == null) {
+            // Lazily set the player up. We must go through setupPlayer (not a bare
+            // makeNewScoreboard) so the created wrapper is actually stored in the map - otherwise
+            // its packet Sidebar would be created and immediately leaked, since the packet sidebar
+            // holds a native resource that must be close()d (unlike the old Bukkit board).
+            setupPlayer(player);
+            wrapper = PLAYER_SCOREBOARDS.get(player.getName());
         }
 
-        return PLAYER_SCOREBOARDS.get(player.getName());
+        return wrapper;
     }
 
     // **** Helper methods **** //
@@ -515,77 +590,44 @@ public class ScoreboardManager {
      * @return false if power levels are disabled
      */
     public static boolean powerLevelHeartbeat() {
-        Objective mainObjective = getPowerLevelObjective();
+        ensureBackendReady();
 
-        if (mainObjective == null) {
-            return false; // indicates
+        if (!backend.isPowerLevelTagActive()) {
+            return false;
         }
 
-        for (String playerName : dirtyPowerLevels) {
-            final McMMOPlayer mmoPlayer = UserManager.getPlayer(playerName);
-
-            if (mmoPlayer == null) {
-                continue;
-            }
-
-            Player player = mmoPlayer.getPlayer();
-            int power = mmoPlayer.getPowerLevel();
-
-            mainObjective.getScore(playerName).setScore(power);
-
-            for (ScoreboardWrapper wrapper : PLAYER_SCOREBOARDS.values()) {
-                wrapper.updatePowerLevel(player, power);
-            }
-        }
-
-        dirtyPowerLevels.clear();
+        PowerLevelTagUpdater.applyPending(dirtyPowerLevels, ScoreboardManager::resolvePowerLevel,
+                playerName -> Bukkit.getPlayerExact(playerName) != null, backend::setPowerLevel);
         return true;
     }
 
     /**
-     * Gets or creates the power level objective on the main targetBoard.
-     * <p/>
-     * If power levels are disabled, the objective is deleted and null is returned.
-     *
-     * @return the main targetBoard objective, or null if disabled
+     * @return the player's current power level, or null while their profile has not loaded
      */
-    public static @Nullable Objective getPowerLevelObjective() {
-        if (!mcMMO.p.getGeneralConfig().getPowerLevelTagsEnabled()) {
-            if (getScoreboardManager() == null) {
-                return null;
-            }
-
-            Objective objective = getScoreboardManager().getMainScoreboard()
-                    .getObjective(POWER_OBJECTIVE);
-
-            if (objective != null) {
-                objective.unregister();
-                LogUtils.debug(mcMMO.p.getLogger(),
-                        "Removed leftover targetBoard objects from Power Level Tags.");
-            }
-
-            return null;
-        }
-
-        if (getScoreboardManager() == null) {
-            return null;
-        }
-
-        Objective powerObjective = getScoreboardManager().getMainScoreboard()
-                .getObjective(POWER_OBJECTIVE);
-
-        if (powerObjective == null) {
-            powerObjective = getScoreboardManager().getMainScoreboard()
-                    .registerNewObjective(POWER_OBJECTIVE, "dummy", DISPLAY_NAME);
-            powerObjective.setDisplayName(TAG_POWER_LEVEL);
-            powerObjective.setDisplaySlot(DisplaySlot.BELOW_NAME);
-        }
-
-        return powerObjective;
+    private static @Nullable Integer resolvePowerLevel(final String playerName) {
+        final McMMOPlayer mmoPlayer = UserManager.getPlayer(playerName);
+        return mmoPlayer == null ? null : mmoPlayer.getPowerLevel();
     }
 
-    public @Nullable
-    static org.bukkit.scoreboard.ScoreboardManager getScoreboardManager() {
+    /**
+     * Gets or creates the packet-based below-name power level objective.
+     * <p/>
+     * If power levels are disabled, the objective manager is closed and null is returned.
+     *
+     * @return the power level objective, or null if disabled
+     */
+    public static @Nullable ScoreboardObjective getPowerLevelObjective() {
+        ensureBackendReady();
+        return backend.getPacketPowerLevelObjective();
+    }
+
+    /**
+     * @deprecated The packet-based sidebar no longer uses Bukkit's {@link
+     * org.bukkit.scoreboard.ScoreboardManager}; this method has no internal callers and is kept
+     * only as a thin pass-through for backwards compatibility.
+     */
+    @Deprecated
+    public static @Nullable org.bukkit.scoreboard.ScoreboardManager getScoreboardManager() {
         return mcMMO.p.getServer().getScoreboardManager();
     }
 
@@ -598,37 +640,95 @@ public class ScoreboardManager {
     }
 
     public static boolean isBoardShown(String playerName) {
-        return PLAYER_SCOREBOARDS.get(playerName).isBoardShown();
+        ScoreboardWrapper wrapper = PLAYER_SCOREBOARDS.get(playerName);
+        return wrapper != null && wrapper.isBoardShown();
     }
 
     public static void clearBoard(String playerName) {
-        PLAYER_SCOREBOARDS.get(playerName).tryRevertBoard();
+        ScoreboardWrapper wrapper = PLAYER_SCOREBOARDS.get(playerName);
+        if (wrapper != null) {
+            wrapper.tryRevertBoard();
+        }
     }
 
     public static void keepBoard(String playerName) {
-        PLAYER_SCOREBOARDS.get(playerName).cancelRevert();
+        ScoreboardWrapper wrapper = PLAYER_SCOREBOARDS.get(playerName);
+        if (wrapper != null) {
+            wrapper.cancelRevert();
+        }
     }
 
     public static void setRevertTimer(String playerName, int seconds) {
-        PLAYER_SCOREBOARDS.get(playerName)
-                .showBoardAndScheduleRevert(seconds * Misc.TICK_CONVERSION_FACTOR);
+        ScoreboardWrapper wrapper = PLAYER_SCOREBOARDS.get(playerName);
+        if (wrapper != null) {
+            wrapper.showBoardAndScheduleRevert(seconds * Misc.TICK_CONVERSION_FACTOR);
+        }
     }
 
     public static boolean isPlayerBoardSetup(@NotNull String playerName) {
         return PLAYER_SCOREBOARDS.get(playerName) != null;
     }
 
-    public static @Nullable ScoreboardWrapper makeNewScoreboard(Player player) {
-        if (getScoreboardManager() == null) {
-            return null;
+    public static @NotNull ScoreboardWrapper makeNewScoreboard(Player player) {
+        ensureBackendReady();
+
+        final Scoreboard eventTargetBoard = backend.createEventTargetBoard(player);
+        final Scoreboard currentBoard = player.getScoreboard();
+        McMMOScoreboardMakeboardEvent event = new McMMOScoreboardMakeboardEvent(
+                eventTargetBoard, currentBoard, player,
+                ScoreboardEventReason.CREATING_NEW_SCOREBOARD);
+        player.getServer().getPluginManager().callEvent(event);
+
+        final Player targetPlayer = event.getTargetPlayer();
+        final Scoreboard targetBoard = event.getTargetBoard() == null
+                ? currentBoard
+                : event.getTargetBoard();
+        final PlayerBoard playerBoard = backend.createPlayerBoard(targetPlayer, targetBoard);
+        return new ScoreboardWrapper(targetPlayer, playerBoard);
+    }
+
+    public static @NotNull ScoreboardBackend getBackend() {
+        ensureBackendReady();
+        return backend;
+    }
+
+    public static @NotNull ScoreboardBackendType getBackendType() {
+        ensureBackendReady();
+        return backendType;
+    }
+
+    public static boolean isBukkitBackendActive() {
+        return getBackendType() == ScoreboardBackendType.BUKKIT;
+    }
+
+    public static void onPlayerBoardClosed(@NotNull String playerName) {
+        ensureBackendReady();
+        backend.onPlayerBoardClosed(playerName);
+    }
+
+    /**
+     * Removes a leftover persisted below-name power level objective from the main scoreboard.
+     * Guarded so scheduler thread restrictions (e.g. Folia off-thread scoreboard access when a
+     * backend is initialized lazily) can never break backend initialization.
+     */
+    private static void cleanUpLeftoverBukkitPowerObjective() {
+        try {
+            BukkitScoreboardBackend.removeLeftoverPowerObjective();
+        } catch (RuntimeException e) {
+            LogUtils.debug(mcMMO.p.getLogger(),
+                    "Skipped leftover power level objective cleanup: " + e.getMessage());
+        }
+    }
+
+    private static void ensureBackendReady() {
+        if (backend == null) {
+            init();
         }
 
-        //Call our custom event
-        Scoreboard scoreboard = getScoreboardManager().getNewScoreboard();
-        McMMOScoreboardMakeboardEvent event = new McMMOScoreboardMakeboardEvent(scoreboard,
-                player.getScoreboard(), player, ScoreboardEventReason.CREATING_NEW_SCOREBOARD);
-        player.getServer().getPluginManager().callEvent(event);
-        //Use the values from the event
-        return new ScoreboardWrapper(event.getTargetPlayer(), event.getTargetBoard());
+        if (backend == null) {
+            backend = new NoopScoreboardBackend();
+            backendType = ScoreboardBackendType.NOOP;
+            backend.init();
+        }
     }
 }
