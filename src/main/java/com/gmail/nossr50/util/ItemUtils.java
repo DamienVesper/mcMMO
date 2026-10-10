@@ -14,6 +14,7 @@ import com.gmail.nossr50.skills.smelting.Smelting;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -662,10 +663,15 @@ public final class ItemUtils {
     }
 
     private static boolean hasOreSmeltingRecipe(Material material) {
-        for (Recipe recipe : mcMMO.p.getServer().getRecipesFor(new ItemStack(material))) {
-            if (recipe instanceof FurnaceRecipe
-                    && ((FurnaceRecipe) recipe).getInput().getType().isBlock()
-                    && MaterialUtils.isOre(((FurnaceRecipe) recipe).getInput().getType())) {
+        // Server.getRecipesFor would do this walk for us, but it dies on servers that cannot
+        // convert every recipe
+        for (final Iterator<Recipe> recipeIterator =
+                RecipeUtils.safeRecipeIterator(mcMMO.p.getServer(), mcMMO.p.getLogger());
+                recipeIterator.hasNext(); ) {
+            if (recipeIterator.next() instanceof FurnaceRecipe furnaceRecipe
+                    && furnaceRecipe.getResult().getType() == material
+                    && furnaceRecipe.getInput().getType().isBlock()
+                    && MaterialUtils.isOre(furnaceRecipe.getInput().getType())) {
                 return true;
             }
         }
@@ -761,17 +767,17 @@ public final class ItemUtils {
      */
     public static boolean isWoodcuttingDrop(ItemStack item) {
         return switch (item.getType().toString()) {
-            case "ACACIA_LOG", "BIRCH_LOG", "DARK_OAK_LOG", "PALE_OAK_LOG", "JUNGLE_LOG", "OAK_LOG",
-                 "SPRUCE_LOG", "MANGROVE_LOG", "CHERRY_LOG",
+            case "ACACIA_LOG", "BIRCH_LOG", "DARK_OAK_LOG", "PALE_OAK_LOG", "POPLAR_LOG",
+                 "JUNGLE_LOG", "OAK_LOG", "SPRUCE_LOG", "MANGROVE_LOG", "CHERRY_LOG",
                  "STRIPPED_ACACIA_LOG", "STRIPPED_BIRCH_LOG", "STRIPPED_DARK_OAK_LOG",
-                 "STRIPPED_PALE_OAK_LOG",
-                 "STRIPPED_JUNGLE_LOG", "STRIPPED_OAK_LOG", "STRIPPED_SPRUCE_LOG",
-                 "STRIPPED_MANGROVE_LOG", "STRIPPED_CHERRY_LOG",
-                 "ACACIA_SAPLING", "SPRUCE_SAPLING", "BIRCH_SAPLING", "DARK_OAK_SAPLING",
-                 "PALE_OAK_SAPLING",
-                 "JUNGLE_SAPLING", "OAK_SAPLING", "ACACIA_LEAVES", "BIRCH_LEAVES",
-                 "DARK_OAK_LEAVES", "PALE_OAK_LEAVES",
-                 "JUNGLE_LEAVES", "OAK_LEAVES", "SPRUCE_LEAVES", "BEE_NEST", "APPLE" -> true;
+                 "STRIPPED_PALE_OAK_LOG", "STRIPPED_POPLAR_LOG", "STRIPPED_JUNGLE_LOG",
+                 "STRIPPED_OAK_LOG", "STRIPPED_SPRUCE_LOG", "STRIPPED_MANGROVE_LOG",
+                 "STRIPPED_CHERRY_LOG", "ACACIA_SAPLING", "SPRUCE_SAPLING", "BIRCH_SAPLING",
+                 "DARK_OAK_SAPLING", "PALE_OAK_SAPLING", "POPLAR_SAPLING", "JUNGLE_SAPLING",
+                 "OAK_SAPLING", "ACACIA_LEAVES", "BIRCH_LEAVES", "DARK_OAK_LEAVES",
+                 "PALE_OAK_LEAVES", "RED_POPLAR_LEAVES", "ORANGE_POPLAR_LEAVES",
+                 "YELLOW_POPLAR_LEAVES", "JUNGLE_LEAVES", "OAK_LEAVES", "SPRUCE_LEAVES",
+                 "BEE_NEST", "APPLE" -> true;
             default -> false;
         };
     }
