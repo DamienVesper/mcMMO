@@ -14,19 +14,18 @@ jobs:
     steps:
 
     # 1. Check out the current working tree
-    - name: Checkout repository
+    - name: Checkout Repository
       uses: actions/checkout@v7
 
-    # 2. Setup Java 17 JDK (Adopt)
-    - name: Java 17 setup
+    # 2. Setup Java 25 JDK
+    - name: Java 25 Setup
       uses: actions/setup-java@v6
       with:
-        distribution: 'adopt'
-        java-package: jdk
-        java-version: '17'
+        distribution: temurin
+        java-version: 25
 
     # 3. Setup local Maven package cache to speed up building
-    - name: Cache Maven packages
+    - name: Cache Maven Packages
       uses: actions/cache@v6
       with:
         path: ~/.m2
